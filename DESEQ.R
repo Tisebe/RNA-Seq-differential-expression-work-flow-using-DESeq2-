@@ -115,3 +115,60 @@ head( assay(se) )
 
 #This SummarizedExperiment object se is then all we need to start our analysis.
 
+#The DESeqDataSet, column metadata, and the design formula
+
+#The data object class in DESeq2 is the DESeqDataSet, which is built on top of the SummarizedExperiment class. One main differences is that the assay slot is instead accessed using the count accessor, and the values in this matrix must be non-negative integers.
+
+#A second difference is that the DESeqDataSet has an associated “design formula”. The design formula tells which variables in the column metadata table colData specify the experimental design and how these factors should be used in the analysis.
+
+#The simplest design formula for differential expression would be ~ condition, where condition is a column in colData(dds) which specifies which of two (or more groups) the samples belong to.
+
+#For the parathyroid experiment, we will specify ~ patient + treatment, which means that we want to test for the effect of treatment (the last factor), controlling for the effect of patient (the first factor).
+
+#We now use R’s data command to load a prepared SummarizedExperiment that was generated from the publicly available sequencing data files associated with the Haglund et al. paper, described on page 1. The steps we used to produce this object were equivalent to those you worked through in the previous Section, except that we used the complete set of samples and all reads.
+
+#Run data
+data( "parathyroidGenesSE" )
+se <- parathyroidGenesSE
+colnames(se) <- se$run
+# Check column data
+colData(se)[1:5,1:4]
+
+#Here we see that this object already contains an informative colData slot.
+
+#When you work with your own data, you will have to add the pertinent sample / phenotypic information for the experiment at this stage. We highly recommend keeping this information in a comma-separated value (CSV) or tab-separated value (TSV) file, which can be exported from an Excel spreadsheet, and the assign this to the colData slot, as shown in the previous section.
+
+str( metadata( rowData(se) ) )
+
+#Once we have our fully annotated SummerizedExperiment object, we can construct a DESeqDataSet object from it, which will then form the staring point of the actual DESeq2 package
+
+library( "DESeq2" )
+ddsFull <- DESeqDataSet( se, design = ~ patient + treatment )
+
+
+#Collapsing technical replicates
+
+#There are a number of samples which were sequenced in multiple runs. For example, sample SRS308873 was sequenced twice.
+
+#as.data.frame forces R to show us the full list
+head(as.data.frame( colData( ddsFull )[ ,c("sample","patient","treatment","time") ] ), 12)
+
+#A convenience function has been implemented to collapse, which can take an object, either SummarizedExperiment or DESeqDataSet, and a grouping factor, in this case the sample name, and return the object with the counts summed up for each unique sample. Optionally, we can provide a third argument, run, which can be used to paste together the names of the runs which were collapsed to create the new object.
+
+ddsCollapsed <- collapseReplicates( ddsFull,
+                                    groupby = ddsFull$sample,
+                                    run = ddsFull$run )
+head( as.data.frame( colData(ddsCollapsed)[ ,c("sample","runsCollapsed") ] ), 12 )
+
+original <- rowSums( counts(ddsFull)[ , ddsFull$sample == "SRS308873" ] )
+all( original == counts(ddsCollapsed)[ ,"SRS308873" ] )
+
+#Running the DESeq2 pipeline
+
+#Here we will analyze a subset of the samples, namely those taken after 48 hours, with either control, DPN or OHT treatment, taking into account the multifactor design.
+
+#Preparing the data object for the analysis of interest
+
+#First we subset the relevant columns from the full dataset:
+
+dds <- ddsCollapsed[ , ddsCollapsed$time == "48h" ]
