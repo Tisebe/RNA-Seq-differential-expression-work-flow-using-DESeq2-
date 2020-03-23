@@ -172,3 +172,20 @@ all( original == counts(ddsCollapsed)[ ,"SRS308873" ] )
 #First we subset the relevant columns from the full dataset:
 
 dds <- ddsCollapsed[ , ddsCollapsed$time == "48h" ]
+
+#Sometimes it is necessary to drop levels of the factors, in case that all the samples for one or more levels of a factor in the design have been removed. If time were included in the design formula, the following code could be used to take care of dropped levels in this column.
+
+
+dds$time <- droplevels( dds$time )
+
+#It will be convenient to make sure that Control is the first level in the treatment factor, so that the default log2 fold changes are calculated as treatment over control and not the other way around. The function relevel achieves this:
+
+dds$treatment <- relevel( dds$treatment, "Control" )
+
+#A quick check whether we now have the right samples:
+
+as.data.frame( colData(dds) )
+
+#In order to speed up some annotation steps below, it makes sense to remove genes which have zero counts for all samples. This can be done by simply indexing the dds object:
+
+dds <- dds[ rowSums( counts(dds) ) > 0 , ]
